@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mapa Podróży</title>
+  <style>
+    #map {
+      height: 500px;
+      width: 100%;
+      margin-top: 20px;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    .info {
+      margin: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Mapa Podróży</h1>
+  <p class="info">Kliknij na mapie, aby dodać punkt podróży!</p>
+  <div id="map"></div>
+  <script>
+    let map;
+    const markers = [];
+
+    function initMap() {
+      // Inicjalizacja mapy
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 52.2, lng: 21.0 },
+        zoom: 6,
+      });
+
+      // Kliknięcie na mapie
+      map.addListener("click", (event) => {
+        addMarker(event.latLng);
+      });
+    }
+
+    function addMarker(location) {
+      // Dodanie markera
+      const marker = new google.maps.Marker({
+        position: location,
+        map: map,
+      });
+      markers.push(marker);
+    }
+  </script>
+  <script async
+    src="https://maps.googleapis.com/maps/api/js?key=TWÓJ_KLUCZ_API&callback=initMap">
+  </script>
+</body>
+</html>
