@@ -16,14 +16,28 @@
       text-align: center;
       padding: 20px;
     }
-    .info {
+    .controls {
       margin: 10px;
+    }
+    .controls select {
+      margin-right: 10px;
+    }
+    .controls button {
+      margin-left: 10px;
     }
   </style>
 </head>
 <body>
   <h1>Mapa Podróży</h1>
-  <p class="info">Kliknij na mapie, aby dodać punkt!</p>
+  <p>Wybierz typ punktu, a następnie kliknij na mapie, aby dodać marker.</p>
+  <div class="controls">
+    <select id="markerType">
+      <option value="Jedzenie">Jedzenie</option>
+      <option value="Nocleg">Nocleg</option>
+      <option value="Atrakcja">Atrakcja</option>
+    </select>
+    <button id="removeMarkers">Usuń wszystkie markery</button>
+  </div>
   <div id="map"></div>
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script>
@@ -35,12 +49,36 @@
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    // Funkcja dodająca marker po kliknięciu na mapę
+    // Kolekcja markerów
+    const markers = [];
+
+    // Funkcje kolorów markerów w zależności od typu
+    const markerColors = {
+      Jedzenie: 'red',
+      Nocleg: 'blue',
+      Atrakcja: 'green'
+    };
+
+    // Obsługa kliknięcia na mapę
     map.on('click', (event) => {
+      const markerType = document.getElementById('markerType').value;
       const { lat, lng } = event.latlng;
-      L.marker([lat, lng]).addTo(map)
-        .bindPopup(`Punkt podróży:<br>Lat: ${lat.toFixed(4)}<br>Lng: ${lng.toFixed(4)}`)
-        .openPopup();
+
+      const marker = L.marker([lat, lng], {
+        icon: L.icon({
+          iconUrl: `https://placehold.co/25x25/${markerColors[markerType]}/ffffff`,
+          iconSize: [25, 25],
+          iconAnchor: [12, 25]
+        })
+      }).addTo(map).bindPopup(`${markerType}:<br>Lat: ${lat.toFixed(4)}<br>Lng: ${lng.toFixed(4)}`);
+
+      markers.push(marker);
+    });
+
+    // Funkcja usuwania markerów
+    document.getElementById('removeMarkers').addEventListener('click', () => {
+      markers.forEach(marker => map.removeLayer(marker));
+      markers.length = 0; // Czyszczenie listy markerów
     });
   </script>
 </body>
