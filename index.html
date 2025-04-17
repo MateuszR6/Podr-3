@@ -108,17 +108,19 @@
     <div class="controls">
       <label for="departureDate">Data odjazdu:</label>
       <input type="date" id="departureDate">
-      <label for="arrivalDate">Data przyjazdu:</label>
-      <input type="date" id="arrivalDate">
-    </div>
-    
-    <div class="controls">
       <label for="departureTime">Godzina odjazdu:</label>
       <input type="time" id="departureTime">
+    </div>
+    <div class="controls">
+      <label for="arrivalDate">Data przyjazdu:</label>
+      <input type="date" id="arrivalDate">
       <label for="arrivalTime">Godzina przyjazdu:</label>
       <input type="time" id="arrivalTime">
     </div>
-    
+    <div class="controls">
+      <label for="ticketPrice">Cena biletów:</label>
+      <input type="text" id="ticketPrice" placeholder="Podaj cenę biletów">
+    </div>
     <div class="controls">
       <label for="routeDescription">Opis:</label>
       <textarea id="routeDescription" placeholder="Opis trasy"></textarea>
@@ -155,10 +157,14 @@
       marker.bindPopup(`<strong>${placeDetails.name || 'Nazwa miejsca'}</strong>`);
     });
     
-    // Kliknięcie na mapę – dodawanie nowego markera
+    // Kliknięcie na mapę – dodawanie nowego markera z promptem na nazwę
     map.on('click', (event) => {
       const markerTypeValue = document.getElementById('markerType').value;
       const { lat, lng } = event.latlng;
+      
+      // Od razu pytamy o nazwę punktu
+      const markerName = prompt("Wprowadź nazwę punktu:");
+      
       const marker = L.circleMarker([lat, lng], {
         color: markerColors[markerTypeValue],
         radius: 10
@@ -166,9 +172,10 @@
       
       const placeDetails = {
         type: markerTypeValue,
-        name: '',
+        name: markerName || '',
         description: '',
         address: '',
+        cost: '',         // Nowe pole "Koszt"
         image: ''
       };
       
@@ -191,13 +198,14 @@
             <strong>Nazwa:</strong> ${placeDetails.name || 'Brak nazwy'}<br>
             <strong>Typ:</strong> ${placeDetails.type}<br>
             <strong>Opis:</strong> ${placeDetails.description || 'Brak opisu'}<br>
-            <strong>Adres:</strong> ${placeDetails.address || 'Brak adresu'}
+            <strong>Adres:</strong> ${placeDetails.address || 'Brak adresu'}<br>
+            <strong>Koszt:</strong> ${placeDetails.cost || 'Brak kosztu'}
           `;
           const placeImage = placeDetails.image
-            ? `<img src="${placeDetails.image}" alt="Zdjęcie miejsca" />`
+            ? `<br><img src="${placeDetails.image}" alt="Zdjęcie miejsca" />`
             : '';
           const buttons = `
-            <button onclick="editMarker(${index})">Edytuj</button>
+            <br><button onclick="editMarker(${index})">Edytuj</button>
             <button onclick="removeMarker(${index})">Usuń</button>
           `;
           placeItem.innerHTML = placeInfo + placeImage + buttons;
@@ -237,7 +245,7 @@
       markers.splice(index, 1);
       saveMarkers();
       updatePlacesList();
-      // Opcjonalnie usuwamy trasy powiązane z danym punktem
+      // Usunięcie tras powiązanych z danym punktem
       routes = routes.filter(route => route.startIndex !== index && route.endIndex !== index);
       saveRoutes();
       updateRoutesList();
@@ -248,10 +256,12 @@
       const newName = prompt("Edytuj nazwę miejsca:", placeDetails.name || '');
       const newDescription = prompt("Edytuj opis:", placeDetails.description || '');
       const newAddress = prompt("Edytuj adres:", placeDetails.address || '');
+      const newCost = prompt("Edytuj koszt:", placeDetails.cost || '');
       const newImageURL = prompt("Edytuj URL do zdjęcia (opcjonalne):", placeDetails.image || '');
       if (newName !== null) { placeDetails.name = newName; }
       if (newDescription !== null) { placeDetails.description = newDescription; }
       if (newAddress !== null) { placeDetails.address = newAddress; }
+      if (newCost !== null) { placeDetails.cost = newCost; }
       if (newImageURL !== null) { placeDetails.image = newImageURL; }
       markers[index].marker.bindPopup(`<strong>${placeDetails.name}</strong>`);
       saveMarkers();
@@ -259,7 +269,6 @@
     }
     
     // Funkcje dla tras
-    // Aktualizacja rozwijanych list przy tworzeniu trasy
     function updateRouteSelectors() {
       const startPointSelect = document.getElementById('startPoint');
       const endPointSelect = document.getElementById('endPoint');
@@ -287,9 +296,10 @@
       }
       
       const departureDate = document.getElementById('departureDate').value;
-      const arrivalDate = document.getElementById('arrivalDate').value;
       const departureTime = document.getElementById('departureTime').value;
+      const arrivalDate = document.getElementById('arrivalDate').value;
       const arrivalTime = document.getElementById('arrivalTime').value;
+      const ticketPrice = document.getElementById('ticketPrice').value;
       const routeDescription = document.getElementById('routeDescription').value;
       
       const startMarker = markers[startIndex].marker;
@@ -306,9 +316,10 @@
         startIndex,
         endIndex,
         departureDate,
-        arrivalDate,
         departureTime,
+        arrivalDate,
         arrivalTime,
+        ticketPrice,
         routeDescription,
         coords: [
           { lat: startLatLng.lat, lng: startLatLng.lng },
@@ -327,9 +338,10 @@
         startIndex: route.startIndex,
         endIndex: route.endIndex,
         departureDate: route.departureDate,
-        arrivalDate: route.arrivalDate,
         departureTime: route.departureTime,
+        arrivalDate: route.arrivalDate,
         arrivalTime: route.arrivalTime,
+        ticketPrice: route.ticketPrice,
         routeDescription: route.routeDescription,
         coords: route.coords
       }));
@@ -362,9 +374,10 @@
         const itemHTML = `
           <strong>Trasa z:</strong> ${startName} <strong>do</strong> ${endName}<br>
           <strong>Data odjazdu:</strong> ${route.departureDate || 'Brak daty'}<br>
+          <strong>Godzina odjazdu:</strong> ${route.departureTime || '-'}<br>
           <strong>Data przyjazdu:</strong> ${route.arrivalDate || 'Brak daty'}<br>
-          <strong>Godzina odjazdu:</strong> ${route.departureTime || '-'} 
           <strong>Godzina przyjazdu:</strong> ${route.arrivalTime || '-'}<br>
+          <strong>Cena biletów:</strong> ${route.ticketPrice || 'Brak ceny'}<br>
           <strong>Opis:</strong> ${route.routeDescription || 'Brak opisu'}
         `;
         const buttons = `
@@ -388,17 +401,19 @@
       const newStart = prompt("Wprowadź nowy indeks punktu początkowego (liczba):", route.startIndex);
       const newEnd = prompt("Wprowadź nowy indeks punktu końcowego (liczba):", route.endIndex);
       const newDepartureDate = prompt("Edytuj datę odjazdu (YYYY-MM-DD):", route.departureDate);
-      const newArrivalDate = prompt("Edytuj datę przyjazdu (YYYY-MM-DD):", route.arrivalDate);
       const newDepartureTime = prompt("Edytuj godzinę odjazdu (HH:MM):", route.departureTime);
+      const newArrivalDate = prompt("Edytuj datę przyjazdu (YYYY-MM-DD):", route.arrivalDate);
       const newArrivalTime = prompt("Edytuj godzinę przyjazdu (HH:MM):", route.arrivalTime);
+      const newTicketPrice = prompt("Edytuj cenę biletów:", route.ticketPrice);
       const newRouteDescription = prompt("Edytuj opis:", route.routeDescription);
       
       if (newStart !== null) route.startIndex = parseInt(newStart);
       if (newEnd !== null) route.endIndex = parseInt(newEnd);
       if (newDepartureDate !== null) route.departureDate = newDepartureDate;
-      if (newArrivalDate !== null) route.arrivalDate = newArrivalDate;
       if (newDepartureTime !== null) route.departureTime = newDepartureTime;
+      if (newArrivalDate !== null) route.arrivalDate = newArrivalDate;
       if (newArrivalTime !== null) route.arrivalTime = newArrivalTime;
+      if (newTicketPrice !== null) route.ticketPrice = newTicketPrice;
       if (newRouteDescription !== null) route.routeDescription = newRouteDescription;
       
       map.removeLayer(route.line);
