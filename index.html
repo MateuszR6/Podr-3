@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mapa Podróży z Trasami</title>
+  <title>Mapa Podróży z Trasami i Kosztami</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
   <style>
     body {
@@ -32,7 +32,7 @@
       font-size: 16px;
       margin: 5px;
     }
-    #placesList, #routesList {
+    #placesList, #routesList, #totalCosts, #extraCostsList {
       margin-top: 20px;
       max-width: 800px;
       margin-left: auto;
@@ -61,7 +61,7 @@
       padding: 5px 10px;
       font-size: 14px;
     }
-    #routeForm {
+    #routeForm, #extraCostsForm {
       border: 1px solid #ccc;
       padding: 10px;
       margin-top: 20px;
@@ -83,6 +83,7 @@
     </select>
   </div>
   <div id="map"></div>
+  
   <h2>Lista punktów</h2>
   <div class="filter">
     <label for="filterType">Filtruj według typu:</label>
@@ -104,7 +105,6 @@
       <label for="endPoint">Punkt końcowy:</label>
       <select id="endPoint"></select>
     </div>
-    
     <div class="controls">
       <label for="departureDate">Data odjazdu:</label>
       <input type="date" id="departureDate">
@@ -118,8 +118,8 @@
       <input type="time" id="arrivalTime">
     </div>
     <div class="controls">
-      <label for="ticketPrice">Cena biletów:</label>
-      <input type="text" id="ticketPrice" placeholder="Podaj cenę biletów">
+      <label for="transportCost">Koszt:</label>
+      <input type="text" id="transportCost" placeholder="Podaj koszt transportu">
     </div>
     <div class="controls">
       <label for="routeDescription">Opis:</label>
@@ -131,6 +131,19 @@
   <h2>Lista tras</h2>
   <div id="routesList"></div>
   
+  <!-- Sekcja kosztów łącznie -->
+  <h2>Koszty łącznie</h2>
+  <div id="totalCosts"></div>
+  
+  <!-- Sekcja kosztów dodatkowych -->
+  <h2>Koszty dodatkowe</h2>
+  <div id="extraCostsForm">
+    <input type="text" id="extraCostDesc" placeholder="Opis kosztu">
+    <input type="number" id="extraCostAmount" placeholder="Kwota">
+    <button onclick="addExtraCost()">Dodaj koszt dodatkowy</button>
+  </div>
+  <div id="extraCostsList"></div>
+  
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script>
     const map = L.map('map').setView([52.2, 21.0], 6);
@@ -140,9 +153,10 @@
       Atrakcja: 'green'
     };
 
-    // Wczytanie markerów i tras z LocalStorage
+    // Wczytanie markerów, tras i kosztów dodatkowych z LocalStorage
     const markers = loadMarkers();
     let routes = loadRoutes();
+    let extraCosts = loadExtraCosts();
     
     const placesList = document.getElementById('placesList');
     const filterType = document.getElementById('filterType');
@@ -151,18 +165,18 @@
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
     
-    // Odtwórz markery na mapie
+    // Odtwarzamy markery na mapie
     markers.forEach(({ marker, placeDetails }) => {
       marker.addTo(map);
       marker.bindPopup(`<strong>${placeDetails.name || 'Nazwa miejsca'}</strong>`);
     });
     
-    // Kliknięcie na mapę – dodawanie nowego markera z promptem na nazwę
+    // Kliknięcie na mapie – dodawanie nowego markera z natychmiastowym promptem na nazwę
     map.on('click', (event) => {
       const markerTypeValue = document.getElementById('markerType').value;
       const { lat, lng } = event.latlng;
       
-      // Od razu pytamy o nazwę punktu
+      // Pytamy o nazwę punktu
       const markerName = prompt("Wprowadź nazwę punktu:");
       
       const marker = L.circleMarker([lat, lng], {
@@ -175,7 +189,7 @@
         name: markerName || '',
         description: '',
         address: '',
-        cost: '',         // Nowe pole "Koszt"
+        cost: '',  // Nowe pole "Koszt"
         image: ''
       };
       
@@ -213,13 +227,15 @@
         }
       });
       updateRouteSelectors();
+      updateSummaryCosts();
     }
     
     filterType.addEventListener('change', updatePlacesList);
     updatePlacesList(); // Inicjalne odświeżenie listy punktów
     updateRoutesList(); // Inicjalne odświeżenie listy tras
+    updateExtraCostsList(); // Inicjalne odświeżenie listy kosztów dodatkowych
     
-    // Funkcje dla markerów
+    // Funkcje obsługujące markery
     function saveMarkers() {
       const serializedMarkers = markers.map(({ marker, placeDetails }) => ({
         lat: marker.getLatLng().lat,
@@ -245,10 +261,11 @@
       markers.splice(index, 1);
       saveMarkers();
       updatePlacesList();
-      // Usunięcie tras powiązanych z danym punktem
+      // Usuwamy trasy powiązane z danym punktem
       routes = routes.filter(route => route.startIndex !== index && route.endIndex !== index);
       saveRoutes();
       updateRoutesList();
+      updateSummaryCosts();
     }
     
     function editMarker(index) {
@@ -268,7 +285,7 @@
       updatePlacesList();
     }
     
-    // Funkcje dla tras
+    // Funkcje obsługujące trasy
     function updateRouteSelectors() {
       const startPointSelect = document.getElementById('startPoint');
       const endPointSelect = document.getElementById('endPoint');
@@ -299,7 +316,7 @@
       const departureTime = document.getElementById('departureTime').value;
       const arrivalDate = document.getElementById('arrivalDate').value;
       const arrivalTime = document.getElementById('arrivalTime').value;
-      const ticketPrice = document.getElementById('ticketPrice').value;
+      const transportCost = document.getElementById('transportCost').value;
       const routeDescription = document.getElementById('routeDescription').value;
       
       const startMarker = markers[startIndex].marker;
@@ -319,7 +336,7 @@
         departureTime,
         arrivalDate,
         arrivalTime,
-        ticketPrice,
+        transportCost,
         routeDescription,
         coords: [
           { lat: startLatLng.lat, lng: startLatLng.lng },
@@ -331,6 +348,7 @@
       routes.push(route);
       saveRoutes();
       updateRoutesList();
+      updateSummaryCosts();
     }
     
     function saveRoutes() {
@@ -341,7 +359,7 @@
         departureTime: route.departureTime,
         arrivalDate: route.arrivalDate,
         arrivalTime: route.arrivalTime,
-        ticketPrice: route.ticketPrice,
+        transportCost: route.transportCost,
         routeDescription: route.routeDescription,
         coords: route.coords
       }));
@@ -377,7 +395,7 @@
           <strong>Godzina odjazdu:</strong> ${route.departureTime || '-'}<br>
           <strong>Data przyjazdu:</strong> ${route.arrivalDate || 'Brak daty'}<br>
           <strong>Godzina przyjazdu:</strong> ${route.arrivalTime || '-'}<br>
-          <strong>Cena biletów:</strong> ${route.ticketPrice || 'Brak ceny'}<br>
+          <strong>Koszt transportu:</strong> ${route.transportCost || 'Brak kosztu'}<br>
           <strong>Opis:</strong> ${route.routeDescription || 'Brak opisu'}
         `;
         const buttons = `
@@ -387,6 +405,7 @@
         routeItem.innerHTML = itemHTML + buttons;
         routesList.appendChild(routeItem);
       });
+      updateSummaryCosts();
     }
     
     function removeRoute(index) {
@@ -394,6 +413,7 @@
       routes.splice(index, 1);
       saveRoutes();
       updateRoutesList();
+      updateSummaryCosts();
     }
     
     function editRoute(index) {
@@ -404,7 +424,7 @@
       const newDepartureTime = prompt("Edytuj godzinę odjazdu (HH:MM):", route.departureTime);
       const newArrivalDate = prompt("Edytuj datę przyjazdu (YYYY-MM-DD):", route.arrivalDate);
       const newArrivalTime = prompt("Edytuj godzinę przyjazdu (HH:MM):", route.arrivalTime);
-      const newTicketPrice = prompt("Edytuj cenę biletów:", route.ticketPrice);
+      const newTransportCost = prompt("Edytuj koszt transportu:", route.transportCost);
       const newRouteDescription = prompt("Edytuj opis:", route.routeDescription);
       
       if (newStart !== null) route.startIndex = parseInt(newStart);
@@ -413,7 +433,7 @@
       if (newDepartureTime !== null) route.departureTime = newDepartureTime;
       if (newArrivalDate !== null) route.arrivalDate = newArrivalDate;
       if (newArrivalTime !== null) route.arrivalTime = newArrivalTime;
-      if (newTicketPrice !== null) route.ticketPrice = newTicketPrice;
+      if (newTransportCost !== null) route.transportCost = newTransportCost;
       if (newRouteDescription !== null) route.routeDescription = newRouteDescription;
       
       map.removeLayer(route.line);
@@ -432,6 +452,90 @@
       
       saveRoutes();
       updateRoutesList();
+      updateSummaryCosts();
+    }
+    
+    // Funkcje związane z kosztami dodatkowych
+    function addExtraCost() {
+      const desc = document.getElementById('extraCostDesc').value.trim();
+      const amount = parseFloat(document.getElementById('extraCostAmount').value);
+      if (!desc || isNaN(amount)) {
+        alert("Podaj opis i poprawną kwotę kosztu dodatkowego.");
+        return;
+      }
+      extraCosts.push({ desc, amount });
+      saveExtraCosts();
+      updateExtraCostsList();
+      updateSummaryCosts();
+      document.getElementById('extraCostDesc').value = "";
+      document.getElementById('extraCostAmount').value = "";
+    }
+    
+    function updateExtraCostsList() {
+      const extraCostsList = document.getElementById('extraCostsList');
+      extraCostsList.innerHTML = '';
+      extraCosts.forEach((extra, index) => {
+        const div = document.createElement('div');
+        div.innerHTML = `<strong>${extra.desc}:</strong> ${extra.amount} 
+          <button onclick="removeExtraCost(${index})">Usuń</button>`;
+        extraCostsList.appendChild(div);
+      });
+    }
+    
+    function removeExtraCost(index) {
+      extraCosts.splice(index, 1);
+      saveExtraCosts();
+      updateExtraCostsList();
+      updateSummaryCosts();
+    }
+    
+    function saveExtraCosts() {
+      localStorage.setItem('extraCosts', JSON.stringify(extraCosts));
+    }
+    
+    function loadExtraCosts() {
+      return JSON.parse(localStorage.getItem('extraCosts')) || [];
+    }
+    
+    // Funkcja do aktualizacji podsumowania kosztów
+    function updateSummaryCosts() {
+      let transportTotal = 0;
+      routes.forEach(route => {
+        const cost = parseFloat(route.transportCost);
+        if (!isNaN(cost)) {
+          transportTotal += cost;
+        }
+      });
+      
+      let noclegTotal = 0, atrakcjaTotal = 0, jedzenieTotal = 0;
+      markers.forEach(item => {
+        const cost = parseFloat(item.placeDetails.cost);
+        if (!isNaN(cost)) {
+          if (item.placeDetails.type === "Nocleg") {
+            noclegTotal += cost;
+          } else if (item.placeDetails.type === "Atrakcja") {
+            atrakcjaTotal += cost;
+          } else if (item.placeDetails.type === "Jedzenie") {
+            jedzenieTotal += cost;
+          }
+        }
+      });
+      
+      let extraTotal = 0;
+      extraCosts.forEach(extra => {
+        extraTotal += extra.amount;
+      });
+      
+      const total = transportTotal + noclegTotal + atrakcjaTotal + jedzenieTotal + extraTotal;
+      const totalCostsDiv = document.getElementById('totalCosts');
+      totalCostsDiv.innerHTML = `
+        <p><strong>Koszty transportu:</strong> ${transportTotal.toFixed(2)}</p>
+        <p><strong>Koszty noclegów:</strong> ${noclegTotal.toFixed(2)}</p>
+        <p><strong>Koszty atrakcji:</strong> ${atrakcjaTotal.toFixed(2)}</p>
+        <p><strong>Koszty jedzenia:</strong> ${jedzenieTotal.toFixed(2)}</p>
+        <p><strong>Koszty dodatkowe:</strong> ${extraTotal.toFixed(2)}</p>
+        <p><strong>Całkowity koszt:</strong> ${total.toFixed(2)}</p>
+      `;
     }
   </script>
 </body>
