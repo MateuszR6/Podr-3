@@ -22,6 +22,9 @@
     .controls select {
       margin-right: 10px;
     }
+    .filter {
+      margin: 20px 0;
+    }
     #placesList {
       margin-top: 20px;
       max-width: 800px;
@@ -35,13 +38,13 @@
       margin-bottom: 10px;
     }
     .place-item img {
-      max-width: 200px;
+      max-width: 400px;
       height: auto;
       display: block;
       margin-top: 10px;
     }
-    .filter {
-      margin: 20px 0;
+    .place-item button {
+      margin-top: 10px;
     }
   </style>
 </head>
@@ -55,6 +58,7 @@
     </select>
   </div>
   <div id="map"></div>
+  <h2>Lista punktów</h2>
   <div class="filter">
     <label for="filterType">Filtruj według typu:</label>
     <select id="filterType">
@@ -88,6 +92,7 @@
       const markerType = document.getElementById('markerType').value;
       const { lat, lng } = event.latlng;
 
+      // Dodanie nowego markera
       const marker = L.circleMarker([lat, lng], {
         color: markerColors[markerType],
         radius: 10
@@ -101,26 +106,10 @@
         image: ''
       };
 
+      marker.bindPopup(`<strong>${placeDetails.name || 'Nazwa miejsca'}</strong>`);
+
       marker.on('click', () => {
-        const newName = prompt("Wprowadź nazwę miejsca:", placeDetails.name || '');
-        const newDescription = prompt("Wprowadź opis:", placeDetails.description || '');
-        const newAddress = prompt("Wprowadź adres:", placeDetails.address || '');
-        const newImageURL = prompt("Wprowadź URL do zdjęcia (opcjonalne):", placeDetails.image || '');
-
-        if (newName !== null) {
-          placeDetails.name = newName;
-        }
-        if (newDescription !== null) {
-          placeDetails.description = newDescription;
-        }
-        if (newAddress !== null) {
-          placeDetails.address = newAddress;
-        }
-        if (newImageURL !== null) {
-          placeDetails.image = newImageURL;
-        }
-
-        updatePlacesList();
+        marker.openPopup();
       });
 
       markers.push({ marker, placeDetails });
@@ -187,6 +176,8 @@
       if (newImageURL !== null) {
         placeDetails.image = newImageURL;
       }
+
+      markers[index].marker.bindPopup(`<strong>${placeDetails.name}</strong>`);
 
       updatePlacesList();
     }
