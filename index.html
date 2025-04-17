@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mapa Podróży z Edycją Markerów</title>
+  <title>Mapa Podróży z Filtrami i Edycją Markerów</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
   <style>
     #map {
@@ -17,17 +17,17 @@
       padding: 20px;
     }
     .controls {
-      margin: 10px;
+      margin: 20px;
     }
     .controls select {
       margin-right: 10px;
     }
     #placesList {
       margin-top: 20px;
-      text-align: left;
       max-width: 800px;
       margin-left: auto;
       margin-right: auto;
+      text-align: left;
     }
     .place-item {
       border: 1px solid #ccc;
@@ -35,19 +35,18 @@
       margin-bottom: 10px;
     }
     .place-item img {
-      max-width: 100px;
+      max-width: 200px;
       height: auto;
       display: block;
       margin-top: 10px;
     }
-    .place-item button {
-      margin-top: 10px;
+    .filter {
+      margin: 20px 0;
     }
   </style>
 </head>
 <body>
   <h1>Mapa Podróży</h1>
-  <p>Wybierz typ punktu, a następnie kliknij na mapie, aby dodać marker.</p>
   <div class="controls">
     <select id="markerType">
       <option value="Jedzenie">Jedzenie</option>
@@ -56,6 +55,15 @@
     </select>
   </div>
   <div id="map"></div>
+  <div class="filter">
+    <label for="filterType">Filtruj według typu:</label>
+    <select id="filterType">
+      <option value="Wszystko">Wszystko</option>
+      <option value="Jedzenie">Jedzenie</option>
+      <option value="Nocleg">Nocleg</option>
+      <option value="Atrakcja">Atrakcja</option>
+    </select>
+  </div>
   <div id="placesList"></div>
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script>
@@ -74,6 +82,7 @@
     };
 
     const placesList = document.getElementById('placesList');
+    const filterType = document.getElementById('filterType');
 
     map.on('click', (event) => {
       const markerType = document.getElementById('markerType').value;
@@ -86,18 +95,26 @@
 
       const placeDetails = {
         type: markerType,
-        lat: lat.toFixed(4),
-        lng: lng.toFixed(4),
+        name: '',
         description: '',
+        address: '',
         image: ''
       };
 
       marker.on('click', () => {
-        const newDescription = prompt("Wprowadź szczegóły punktu:", placeDetails.description || '');
+        const newName = prompt("Wprowadź nazwę miejsca:", placeDetails.name || '');
+        const newDescription = prompt("Wprowadź opis:", placeDetails.description || '');
+        const newAddress = prompt("Wprowadź adres:", placeDetails.address || '');
         const newImageURL = prompt("Wprowadź URL do zdjęcia (opcjonalne):", placeDetails.image || '');
 
+        if (newName !== null) {
+          placeDetails.name = newName;
+        }
         if (newDescription !== null) {
           placeDetails.description = newDescription;
+        }
+        if (newAddress !== null) {
+          placeDetails.address = newAddress;
         }
         if (newImageURL !== null) {
           placeDetails.image = newImageURL;
@@ -112,30 +129,65 @@
 
     function updatePlacesList() {
       placesList.innerHTML = '';
+      const selectedFilter = filterType.value;
+
       markers.forEach(({ placeDetails }, index) => {
-        const placeItem = document.createElement('div');
-        placeItem.className = 'place-item';
+        if (selectedFilter === 'Wszystko' || placeDetails.type === selectedFilter) {
+          const placeItem = document.createElement('div');
+          placeItem.className = 'place-item';
 
-        const placeInfo = `
-          <strong>Typ:</strong> ${placeDetails.type}<br>
-          <strong>Lat:</strong> ${placeDetails.lat}, <strong>Lng:</strong> ${placeDetails.lng}<br>
-          <strong>Opis:</strong> ${placeDetails.description || 'Brak opisu'}
-        `;
+          const placeInfo = `
+            <strong>Nazwa:</strong> ${placeDetails.name || 'Brak nazwy'}<br>
+            <strong>Typ:</strong> ${placeDetails.type}<br>
+            <strong>Opis:</strong> ${placeDetails.description || 'Brak opisu'}<br>
+            <strong>Adres:</strong> ${placeDetails.address || 'Brak adresu'}
+          `;
 
-        const placeImage = placeDetails.image
-          ? `<img src="${placeDetails.image}" alt="Zdjęcie miejsca" />`
-          : '';
+          const placeImage = placeDetails.image
+            ? `<img src="${placeDetails.image}" alt="Zdjęcie miejsca" />`
+            : '';
 
-        const removeButton = `<button onclick="removeMarker(${index})">Usuń</button>`;
-        placeItem.innerHTML = placeInfo + placeImage + removeButton;
+          const buttons = `
+            <button onclick="editMarker(${index})">Edytuj</button>
+            <button onclick="removeMarker(${index})">Usuń</button>
+          `;
 
-        placesList.appendChild(placeItem);
+          placeItem.innerHTML = placeInfo + placeImage + buttons;
+
+          placesList.appendChild(placeItem);
+        }
       });
     }
+
+    filterType.addEventListener('change', updatePlacesList);
 
     function removeMarker(index) {
       map.removeLayer(markers[index].marker);
       markers.splice(index, 1);
+      updatePlacesList();
+    }
+
+    function editMarker(index) {
+      const placeDetails = markers[index].placeDetails;
+
+      const newName = prompt("Edytuj nazwę miejsca:", placeDetails.name || '');
+      const newDescription = prompt("Edytuj opis:", placeDetails.description || '');
+      const newAddress = prompt("Edytuj adres:", placeDetails.address || '');
+      const newImageURL = prompt("Edytuj URL do zdjęcia (opcjonalne):", placeDetails.image || '');
+
+      if (newName !== null) {
+        placeDetails.name = newName;
+      }
+      if (newDescription !== null) {
+        placeDetails.description = newDescription;
+      }
+      if (newAddress !== null) {
+        placeDetails.address = newAddress;
+      }
+      if (newImageURL !== null) {
+        placeDetails.image = newImageURL;
+      }
+
       updatePlacesList();
     }
   </script>
