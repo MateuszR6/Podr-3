@@ -22,9 +22,6 @@
     .controls select {
       margin-right: 10px;
     }
-    .controls button {
-      margin-left: 10px;
-    }
     #placesList {
       margin-top: 20px;
       text-align: left;
@@ -41,6 +38,10 @@
       max-width: 100px;
       height: auto;
       display: block;
+      margin-top: 10px;
+    }
+    .place-item button {
+      margin-top: 10px;
     }
   </style>
 </head>
@@ -60,6 +61,7 @@
   <script>
     const map = L.map('map').setView([52.2, 21.0], 6);
 
+    // Dodanie warstwy mapy OpenStreetMap
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
@@ -94,8 +96,12 @@
         const newDescription = prompt("Wprowadź szczegóły punktu:", placeDetails.description || '');
         const newImageURL = prompt("Wprowadź URL do zdjęcia (opcjonalne):", placeDetails.image || '');
 
-        placeDetails.description = newDescription || placeDetails.description;
-        placeDetails.image = newImageURL || placeDetails.image;
+        if (newDescription !== null) {
+          placeDetails.description = newDescription;
+        }
+        if (newImageURL !== null) {
+          placeDetails.image = newImageURL;
+        }
 
         updatePlacesList();
       });
