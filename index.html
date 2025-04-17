@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mapa Podróży</title>
+  <title>Mapa Podróży z Leaflet.js</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
   <style>
     #map {
       height: 500px;
@@ -22,36 +23,25 @@
 </head>
 <body>
   <h1>Mapa Podróży</h1>
-  <p class="info">Kliknij na mapie, aby dodać punkt podróży!</p>
+  <p class="info">Kliknij na mapie, aby dodać punkt!</p>
   <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script>
-    let map;
-    const markers = [];
+    // Inicjalizacja mapy
+    const map = L.map('map').setView([52.2, 21.0], 6);
 
-    function initMap() {
-      // Inicjalizacja mapy
-      map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat: 52.2, lng: 21.0 },
-        zoom: 6,
-      });
+    // Dodanie warstwy mapy OpenStreetMap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
 
-      // Kliknięcie na mapie
-      map.addListener("click", (event) => {
-        addMarker(event.latLng);
-      });
-    }
-
-    function addMarker(location) {
-      // Dodanie markera
-      const marker = new google.maps.Marker({
-        position: location,
-        map: map,
-      });
-      markers.push(marker);
-    }
-  </script>
-  <script async
-    src="https://maps.googleapis.com/maps/api/js?key=TWÓJ_KLUCZ_API&callback=initMap">
+    // Funkcja dodająca marker po kliknięciu na mapę
+    map.on('click', (event) => {
+      const { lat, lng } = event.latlng;
+      L.marker([lat, lng]).addTo(map)
+        .bindPopup(`Punkt podróży:<br>Lat: ${lat.toFixed(4)}<br>Lng: ${lng.toFixed(4)}`)
+        .openPopup();
+    });
   </script>
 </body>
 </html>
