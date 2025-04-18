@@ -71,6 +71,32 @@
       margin-left: auto;
       margin-right: auto;
     }
+    /* Styl prostego modalu do edycji markera */
+    #markerEditModal {
+      display: none; 
+      position: fixed; 
+      top: 0; left: 0; right: 0; bottom: 0; 
+      background-color: rgba(0,0,0,0.5);
+    }
+    #markerEditModal > div {
+      background: white;
+      margin: 100px auto;
+      padding: 20px;
+      width: 300px;
+      border-radius: 5px;
+      text-align: center;
+    }
+    #markerEditModal input {
+      width: 80%;
+      padding: 5px;
+      margin-top: 10px;
+    }
+    #markerEditModal button {
+      margin-top: 15px;
+      padding: 5px 10px;
+      font-size: 14px;
+      margin-right: 5px;
+    }
   </style>
 </head>
 <body>
@@ -144,6 +170,18 @@
   </div>
   <div id="extraCostsList"></div>
   
+  <!-- Modal do edycji markera -->
+  <div id="markerEditModal">
+    <div>
+      <h2 id="markerEditTitle">Edytuj punkt</h2>
+      <label id="markerEditLabel"></label><br>
+      <input type="text" id="markerEditInput"><br>
+      <button id="markerEditNextBtn">Dalej</button>
+      <button id="markerEditSkipBtn">Pomiń</button>
+      <button id="markerEditCancelBtn">Anuluj</button>
+    </div>
+  </div>
+  
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script>
     const map = L.map('map').setView([52.2, 21.0], 6);
@@ -153,7 +191,7 @@
       Atrakcja: 'green'
     };
 
-    // Wczytanie markerów, tras i kosztów dodatkowych z LocalStorage
+    // Wczytujemy markery, trasy i koszty dodatkowe z LocalStorage
     const markers = loadMarkers();
     let routes = loadRoutes();
     let extraCosts = loadExtraCosts();
@@ -171,12 +209,10 @@
       marker.bindPopup(`<strong>${placeDetails.name || 'Nazwa miejsca'}</strong>`);
     });
     
-    // Kliknięcie na mapie – dodawanie nowego markera z natychmiastowym promptem na nazwę
+    // Dodawanie nowego markera – po kliknięciu na mapie pojawia się prompt na nazwę
     map.on('click', (event) => {
       const markerTypeValue = document.getElementById('markerType').value;
       const { lat, lng } = event.latlng;
-      
-      // Pytamy o nazwę punktu
       const markerName = prompt("Wprowadź nazwę punktu:");
       
       const marker = L.circleMarker([lat, lng], {
@@ -189,7 +225,7 @@
         name: markerName || '',
         description: '',
         address: '',
-        cost: '',  // Nowe pole "Koszt"
+        cost: '',
         image: ''
       };
       
@@ -218,8 +254,9 @@
           const placeImage = placeDetails.image
             ? `<br><img src="${placeDetails.image}" alt="Zdjęcie miejsca" />`
             : '';
+          // Obok przycisku Edytuj dodajemy przycisk "Pomiń" – gdy chcemy przejść do edycji kolejnego pola
           const buttons = `
-            <br><button onclick="editMarker(${index})">Edytuj</button>
+            <br><button onclick="startMarkerEdit(${index})">Edytuj</button>
             <button onclick="removeMarker(${index})">Usuń</button>
           `;
           placeItem.innerHTML = placeInfo + placeImage + buttons;
@@ -235,7 +272,7 @@
     updateRoutesList(); // Inicjalne odświeżenie listy tras
     updateExtraCostsList(); // Inicjalne odświeżenie listy kosztów dodatkowych
     
-    // Funkcje obsługujące markery
+    // --- Funkcje obsługujące markery i LocalStorage ---
     function saveMarkers() {
       const serializedMarkers = markers.map(({ marker, placeDetails }) => ({
         lat: marker.getLatLng().lat,
@@ -268,24 +305,79 @@
       updateSummaryCosts();
     }
     
-    function editMarker(index) {
-      const placeDetails = markers[index].placeDetails;
-      const newName = prompt("Edytuj nazwę miejsca:", placeDetails.name || '');
-      const newDescription = prompt("Edytuj opis:", placeDetails.description || '');
-      const newAddress = prompt("Edytuj adres:", placeDetails.address || '');
-      const newCost = prompt("Edytuj koszt:", placeDetails.cost || '');
-      const newImageURL = prompt("Edytuj URL do zdjęcia (opcjonalne):", placeDetails.image || '');
-      if (newName !== null) { placeDetails.name = newName; }
-      if (newDescription !== null) { placeDetails.description = newDescription; }
-      if (newAddress !== null) { placeDetails.address = newAddress; }
-      if (newCost !== null) { placeDetails.cost = newCost; }
-      if (newImageURL !== null) { placeDetails.image = newImageURL; }
-      markers[index].marker.bindPopup(`<strong>${placeDetails.name}</strong>`);
-      saveMarkers();
-      updatePlacesList();
+    // --- Modal do edycji markera ---
+    // Globalne zmienne dla modal edycji
+    let editingMarkerIndex = null;
+    let editingFieldIndex = 0;
+    const editingFields = ["name", "description", "address", "cost"];
+    const editingFieldLabels = {
+      name: "Nazwa",
+      description: "Opis",
+      address: "Adres",
+      cost: "Koszt"
+    };
+    let editingData = {};
+    
+    const markerEditModal = document.getElementById('markerEditModal');
+    const markerEditTitle = document.getElementById('markerEditTitle');
+    const markerEditLabel = document.getElementById('markerEditLabel');
+    const markerEditInput = document.getElementById('markerEditInput');
+    const markerEditNextBtn = document.getElementById('markerEditNextBtn');
+    const markerEditSkipBtn = document.getElementById('markerEditSkipBtn');
+    const markerEditCancelBtn = document.getElementById('markerEditCancelBtn');
+    
+    // Funkcja inicjująca modal edycji dla wybranego markera
+    function startMarkerEdit(index) {
+      editingMarkerIndex = index;
+      editingFieldIndex = 0;
+      // Tworzymy kopię bieżących danych markera
+      editingData = Object.assign({}, markers[index].placeDetails);
+      showNextField();
     }
     
-    // Funkcje obsługujące trasy
+    function showNextField() {
+      if (editingFieldIndex >= editingFields.length) {
+        // Zakończ edycję – zapisujemy dane
+        markers[editingMarkerIndex].placeDetails = Object.assign({}, editingData);
+        markers[editingMarkerIndex].marker.bindPopup(`<strong>${editingData.name}</strong>`);
+        saveMarkers();
+        updatePlacesList();
+        hideMarkerEditModal();
+        return;
+      }
+      const fieldKey = editingFields[editingFieldIndex];
+      markerEditLabel.textContent = editingFieldLabels[fieldKey] + ":";
+      markerEditInput.value = editingData[fieldKey] || "";
+      markerEditModal.style.display = "block";
+    }
+    
+    function hideMarkerEditModal() {
+      markerEditModal.style.display = "none";
+    }
+    
+    markerEditNextBtn.addEventListener('click', function() {
+      const fieldKey = editingFields[editingFieldIndex];
+      // Jeśli użytkownik coś wpisał, zapisujemy – jeśli nie, to pozostaje wartość z editingData
+      const newValue = markerEditInput.value;
+      if (newValue.trim() !== "") {
+        editingData[fieldKey] = newValue;
+      }
+      editingFieldIndex++;
+      showNextField();
+    });
+    
+    markerEditSkipBtn.addEventListener('click', function() {
+      // Pomiń bieżące pole – nie zmieniamy wartości, przechodzimy dalej
+      editingFieldIndex++;
+      showNextField();
+    });
+    
+    markerEditCancelBtn.addEventListener('click', function() {
+      // Zakończ edycję bez zapisywania zmian
+      hideMarkerEditModal();
+    });
+    
+    // --- Funkcje obsługujące trasy ---
     function updateRouteSelectors() {
       const startPointSelect = document.getElementById('startPoint');
       const endPointSelect = document.getElementById('endPoint');
@@ -455,7 +547,7 @@
       updateSummaryCosts();
     }
     
-    // Funkcje związane z kosztami dodatkowych
+    // --- Funkcje obsługujące koszty dodatkowe ---
     function addExtraCost() {
       const desc = document.getElementById('extraCostDesc').value.trim();
       const amount = parseFloat(document.getElementById('extraCostAmount').value);
@@ -477,9 +569,26 @@
       extraCosts.forEach((extra, index) => {
         const div = document.createElement('div');
         div.innerHTML = `<strong>${extra.desc}:</strong> ${extra.amount} 
+          <button onclick="editExtraCost(${index})">Edytuj</button>
           <button onclick="removeExtraCost(${index})">Usuń</button>`;
         extraCostsList.appendChild(div);
       });
+    }
+    
+    function editExtraCost(index) {
+      const newDesc = prompt("Edytuj opis kosztu:", extraCosts[index].desc);
+      if (newDesc === null) return; // anulowano
+      let newAmount = prompt("Edytuj kwotę kosztu:", extraCosts[index].amount);
+      if (newAmount === null) return;
+      newAmount = parseFloat(newAmount);
+      if (isNaN(newAmount)) {
+        alert("Podana kwota jest niepoprawna.");
+        return;
+      }
+      extraCosts[index] = { desc: newDesc, amount: newAmount };
+      saveExtraCosts();
+      updateExtraCostsList();
+      updateSummaryCosts();
     }
     
     function removeExtraCost(index) {
@@ -497,7 +606,7 @@
       return JSON.parse(localStorage.getItem('extraCosts')) || [];
     }
     
-    // Funkcja do aktualizacji podsumowania kosztów
+    // --- Funkcja sumująca wszystkie koszty ---
     function updateSummaryCosts() {
       let transportTotal = 0;
       routes.forEach(route => {
