@@ -46,6 +46,7 @@
       margin-bottom: 10px;
       border-radius: 5px;
       background-color: #f9f9f9;
+      position: relative;
     }
     .route-item {
       background-color: #eef;
@@ -96,6 +97,14 @@
       padding: 5px 10px;
       font-size: 14px;
       margin-right: 5px;
+    }
+    /* Styl ikony edycji – po prawej stronie elementu */
+    .edit-icon {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      cursor: pointer;
+      font-size: 20px;
     }
   </style>
 </head>
@@ -244,9 +253,11 @@
         if (selectedFilter === 'Wszystko' || placeDetails.type === selectedFilter) {
           const placeItem = document.createElement('div');
           placeItem.className = 'place-item';
+          // Dodajemy ikonę edycji po prawej stronie
+          const editIcon = `<span class="edit-icon" onclick="startMarkerEdit(${index})" title="Edytuj">✏️</span>`;
           const placeInfo = `
             <strong>Nazwa:</strong> ${placeDetails.name || 'Brak nazwy'}<br>
-            <strong>Typ:</strong> ${placeDetails.type}<br>
+            <strong>Typ:</strong> ${placeDetails.type || 'Brak typu'}<br>
             <strong>Opis:</strong> ${placeDetails.description || 'Brak opisu'}<br>
             <strong>Adres:</strong> ${placeDetails.address || 'Brak adresu'}<br>
             <strong>Koszt:</strong> ${placeDetails.cost || 'Brak kosztu'}
@@ -254,12 +265,9 @@
           const placeImage = placeDetails.image
             ? `<br><img src="${placeDetails.image}" alt="Zdjęcie miejsca" />`
             : '';
-          // Obok przycisku Edytuj dodajemy przycisk "Pomiń" – gdy chcemy przejść do edycji kolejnego pola
-          const buttons = `
-            <br><button onclick="startMarkerEdit(${index})">Edytuj</button>
-            <button onclick="removeMarker(${index})">Usuń</button>
-          `;
-          placeItem.innerHTML = placeInfo + placeImage + buttons;
+          // Obok umieszczamy przycisk Usuń
+          const buttons = `<br><button onclick="removeMarker(${index})">Usuń</button>`;
+          placeItem.innerHTML = editIcon + placeInfo + placeImage + buttons;
           placesList.appendChild(placeItem);
         }
       });
@@ -308,14 +316,16 @@
     // --- Modal do edycji markera ---
     // Globalne zmienne dla modal edycji
     let editingMarkerIndex = null;
-    let editingFieldIndex = 0;
-    const editingFields = ["name", "description", "address", "cost"];
+    // Teraz pola w kolejności: Nazwa, Typ, Opis, Adres, Koszt
+    let editingFields = ["name", "type", "description", "address", "cost"];
     const editingFieldLabels = {
       name: "Nazwa",
+      type: "Typ",
       description: "Opis",
       address: "Adres",
       cost: "Koszt"
     };
+    let editingFieldIndex = 0;
     let editingData = {};
     
     const markerEditModal = document.getElementById('markerEditModal');
@@ -330,7 +340,7 @@
     function startMarkerEdit(index) {
       editingMarkerIndex = index;
       editingFieldIndex = 0;
-      // Tworzymy kopię bieżących danych markera
+      // Kopia bieżących danych markera
       editingData = Object.assign({}, markers[index].placeDetails);
       showNextField();
     }
@@ -357,7 +367,6 @@
     
     markerEditNextBtn.addEventListener('click', function() {
       const fieldKey = editingFields[editingFieldIndex];
-      // Jeśli użytkownik coś wpisał, zapisujemy – jeśli nie, to pozostaje wartość z editingData
       const newValue = markerEditInput.value;
       if (newValue.trim() !== "") {
         editingData[fieldKey] = newValue;
@@ -367,13 +376,13 @@
     });
     
     markerEditSkipBtn.addEventListener('click', function() {
-      // Pomiń bieżące pole – nie zmieniamy wartości, przechodzimy dalej
+      // Pomiń bieżące pole
       editingFieldIndex++;
       showNextField();
     });
     
     markerEditCancelBtn.addEventListener('click', function() {
-      // Zakończ edycję bez zapisywania zmian
+      // Anuluj edycję
       hideMarkerEditModal();
     });
     
@@ -577,7 +586,7 @@
     
     function editExtraCost(index) {
       const newDesc = prompt("Edytuj opis kosztu:", extraCosts[index].desc);
-      if (newDesc === null) return; // anulowano
+      if (newDesc === null) return; // Anulowano
       let newAmount = prompt("Edytuj kwotę kosztu:", extraCosts[index].amount);
       if (newAmount === null) return;
       newAmount = parseFloat(newAmount);
