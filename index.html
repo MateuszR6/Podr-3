@@ -57,47 +57,22 @@
       display: block;
       margin-top: 10px;
     }
-    /* Ikony: edycji oraz kosza – kosz jest czarny */
-    .edit-icon,
-    .delete-icon {
-      position: absolute;
-      top: 10px;
-      cursor: pointer;
-      font-size: 20px;
+    .place-item button, .route-item button, #routeForm button {
+      margin-top: 10px;
+      padding: 5px 10px;
+      font-size: 14px;
     }
-    .edit-icon {
-      right: 40px;
-    }
-    .delete-icon {
-      right: 10px;
-    }
-    .delete-icon:hover {
-      color: red;
-    }
-    /* Modal do potwierdzania usunięcia */
-    #deleteConfirmModal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(0, 0, 0, 0.5);
-      text-align: center;
-    }
-    #deleteConfirmModal > div {
-      display: inline-block;
-      background: white;
-      padding: 20px;
-      margin-top: 100px;
+    #routeForm, #extraCostsForm {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin-top: 20px;
       border-radius: 5px;
+      background-color: #fafafa;
+      max-width: 800px;
+      margin-left: auto;
+      margin-right: auto;
     }
-    #deleteConfirmModal button {
-      margin: 10px;
-      padding: 10px 20px;
-      font-size: 16px;
-    }
-    /* Modal do edycji punktu */
+    /* Styl prostego modalu do edycji markera */
     #markerEditModal {
       display: none; 
       position: fixed; 
@@ -122,6 +97,14 @@
       padding: 5px 10px;
       font-size: 14px;
       margin-right: 5px;
+    }
+    /* Styl ikony edycji – po prawej stronie elementu */
+    .edit-icon {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      cursor: pointer;
+      font-size: 20px;
     }
   </style>
 </head>
@@ -148,16 +131,55 @@
   </div>
   <div id="placesList"></div>
   
-  <!-- Modal do potwierdzenia usunięcia -->
-  <div id="deleteConfirmModal">
-    <div>
-      <p>Czy na pewno chcesz usunąć ten element?</p>
-      <button id="deleteConfirmYes">Tak</button>
-      <button id="deleteConfirmNo">Anuluj</button>
+  <!-- Sekcja tworzenia trasy -->
+  <h2>Tworzenie trasy</h2>
+  <div id="routeForm">
+    <div class="controls">
+      <label for="startPoint">Punkt początkowy:</label>
+      <select id="startPoint"></select>
+      <label for="endPoint">Punkt końcowy:</label>
+      <select id="endPoint"></select>
     </div>
+    <div class="controls">
+      <label for="departureDate">Data odjazdu:</label>
+      <input type="date" id="departureDate">
+      <label for="departureTime">Godzina odjazdu:</label>
+      <input type="time" id="departureTime">
+    </div>
+    <div class="controls">
+      <label for="arrivalDate">Data przyjazdu:</label>
+      <input type="date" id="arrivalDate">
+      <label for="arrivalTime">Godzina przyjazdu:</label>
+      <input type="time" id="arrivalTime">
+    </div>
+    <div class="controls">
+      <label for="transportCost">Koszt:</label>
+      <input type="text" id="transportCost" placeholder="Podaj koszt transportu">
+    </div>
+    <div class="controls">
+      <label for="routeDescription">Opis:</label>
+      <textarea id="routeDescription" placeholder="Opis trasy"></textarea>
+    </div>
+    <button onclick="addRoute()">Dodaj trasę</button>
   </div>
   
-  <!-- Modal do edycji punktu -->
+  <h2>Lista tras</h2>
+  <div id="routesList"></div>
+  
+  <!-- Sekcja kosztów łącznie -->
+  <h2>Koszty łącznie</h2>
+  <div id="totalCosts"></div>
+  
+  <!-- Sekcja kosztów dodatkowych -->
+  <h2>Koszty dodatkowe</h2>
+  <div id="extraCostsForm">
+    <input type="text" id="extraCostDesc" placeholder="Opis kosztu">
+    <input type="number" id="extraCostAmount" placeholder="Kwota">
+    <button onclick="addExtraCost()">Dodaj koszt dodatkowy</button>
+  </div>
+  <div id="extraCostsList"></div>
+  
+  <!-- Modal do edycji markera -->
   <div id="markerEditModal">
     <div>
       <h2 id="markerEditTitle">Edytuj punkt</h2>
@@ -169,108 +191,44 @@
     </div>
   </div>
   
-  <!-- Poniżej pozostają dotychczasowe sekcje (tworzenie tras, koszty dodatkowe itd.)
-       – w tym przykładzie dla przejrzystości prezentuję fragmenty związane z mapą i punktami. -->
-  
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script>
-    // Inicjalizacja mapy i kafelków
     const map = L.map('map').setView([52.2, 21.0], 6);
+    const markerColors = {
+      Jedzenie: 'red',
+      Nocleg: 'blue',
+      Atrakcja: 'green'
+    };
+
+    // Wczytujemy markery, trasy i koszty dodatkowe z LocalStorage
+    const markers = loadMarkers();
+    let routes = loadRoutes();
+    let extraCosts = loadExtraCosts();
+    
+    const placesList = document.getElementById('placesList');
+    const filterType = document.getElementById('filterType');
+    
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
-
-    // Wczytujemy zapisane markery z LocalStorage
-    const markers = loadMarkers();
-    const placesList = document.getElementById('placesList');
-    const filterType = document.getElementById('filterType');
-
-    // Modal do potwierdzenia usunięcia
-    const deleteConfirmModal = document.getElementById('deleteConfirmModal');
-    const deleteConfirmYes = document.getElementById('deleteConfirmYes');
-    const deleteConfirmNo = document.getElementById('deleteConfirmNo');
-    let markerToDeleteIndex = null;
-
-    // Funkcja aktualizująca listę punktów
-    function updatePlacesList() {
-      placesList.innerHTML = '';
-      markers.forEach(({ placeDetails }, index) => {
-        const placeItem = document.createElement('div');
-        placeItem.className = 'place-item';
-        // Ikona edycji
-        const editIcon = `<span class="edit-icon" onclick="startMarkerEdit(${index})" title="Edytuj">✏️</span>`;
-        // Ikona kosza (czarny kosz)
-        const deleteIcon = `<span class="delete-icon" onclick="confirmDeleteMarker(${index})" title="Usuń">🗑️</span>`;
-        const placeInfo = `
-          <strong>Nazwa:</strong> ${placeDetails.name || 'Brak nazwy'}<br>
-          <strong>Typ:</strong> ${placeDetails.type || 'Brak typu'}<br>
-          <strong>Opis:</strong> ${placeDetails.description || 'Brak opisu'}<br>
-          <strong>Adres:</strong> ${placeDetails.address || 'Brak adresu'}<br>
-          <strong>Koszt:</strong> ${placeDetails.cost || 'Brak kosztu'}
-        `;
-        placeItem.innerHTML = editIcon + deleteIcon + placeInfo;
-        placesList.appendChild(placeItem);
-      });
-      // Aktualizuj rozwijane listy przy tworzeniu trasy, podsumowanie kosztów itd.
-      updateRouteSelectors();
-      updateSummaryCosts();
-    }
-
-    // Funkcja wywoływana przy kliknięciu ikony kosza – otwiera modal z potwierdzeniem
-    function confirmDeleteMarker(index) {
-      markerToDeleteIndex = index;
-      deleteConfirmModal.style.display = 'block';
-    }
-
-    deleteConfirmYes.addEventListener('click', () => {
-      if (markerToDeleteIndex !== null) {
-        removeMarker(markerToDeleteIndex);
-      }
-      deleteConfirmModal.style.display = 'none';
+    
+    // Odtwarzamy markery na mapie
+    markers.forEach(({ marker, placeDetails }) => {
+      marker.addTo(map);
+      marker.bindPopup(`<strong>${placeDetails.name || 'Nazwa miejsca'}</strong>`);
     });
-
-    deleteConfirmNo.addEventListener('click', () => {
-      markerToDeleteIndex = null;
-      deleteConfirmModal.style.display = 'none';
-    });
-
-    // Usuwanie markera
-    function removeMarker(index) {
-      map.removeLayer(markers[index].marker);
-      markers.splice(index, 1);
-      saveMarkers();
-      updatePlacesList();
-      // Dodatkowo – jeśli istnieją powiązane trasy, powinny zostać usunięte i zapisane (funkcjonalność zachowana)
-      routes = routes.filter(route => route.startIndex !== index && route.endIndex !== index);
-      saveRoutes();
-      updateRoutesList();
-      updateSummaryCosts();
-    }
-
-    // Funkcje zapisu/odczytu markerów z LocalStorage
-    function loadMarkers() {
-      const savedMarkers = JSON.parse(localStorage.getItem('markers')) || [];
-      return savedMarkers.map(({ lat, lng, placeDetails }) => {
-        const marker = L.circleMarker([lat, lng], { radius: 10 }).addTo(map);
-        marker.bindPopup(`<strong>${placeDetails.name || 'Nazwa miejsca'}</strong>`);
-        return { marker, placeDetails };
-      });
-    }
-    function saveMarkers() {
-      const serializedMarkers = markers.map(({ marker, placeDetails }) => ({
-        lat: marker.getLatLng().lat,
-        lng: marker.getLatLng().lng,
-        placeDetails
-      }));
-      localStorage.setItem('markers', JSON.stringify(serializedMarkers));
-    }
-
-    // Przykładowa obsługa kliknięcia na mapie – dodawanie nowego markera (z promptem na nazwę)
+    
+    // Dodawanie nowego markera – po kliknięciu na mapie pojawia się prompt na nazwę
     map.on('click', (event) => {
       const markerTypeValue = document.getElementById('markerType').value;
       const { lat, lng } = event.latlng;
       const markerName = prompt("Wprowadź nazwę punktu:");
-      const marker = L.circleMarker([lat, lng], { color: markerTypeValue === "Jedzenie" ? "red" : markerTypeValue === "Nocleg" ? "blue" : "green", radius: 10 }).addTo(map);
+      
+      const marker = L.circleMarker([lat, lng], {
+        color: markerColors[markerTypeValue],
+        radius: 10
+      }).addTo(map);
+      
       const placeDetails = {
         type: markerTypeValue,
         name: markerName || '',
@@ -279,16 +237,86 @@
         cost: '',
         image: ''
       };
+      
       marker.bindPopup(`<strong>${placeDetails.name || 'Nazwa miejsca'}</strong>`);
       marker.on('click', () => { marker.openPopup(); });
+      
       markers.push({ marker, placeDetails });
       saveMarkers();
       updatePlacesList();
     });
-
-    // --- Funkcje obsługujące edycję markera (modal edycji krok po kroku) ---
+    
+    function updatePlacesList() {
+      placesList.innerHTML = '';
+      const selectedFilter = filterType.value;
+      markers.forEach(({ placeDetails }, index) => {
+        if (selectedFilter === 'Wszystko' || placeDetails.type === selectedFilter) {
+          const placeItem = document.createElement('div');
+          placeItem.className = 'place-item';
+          // Dodajemy ikonę edycji po prawej stronie
+          const editIcon = `<span class="edit-icon" onclick="startMarkerEdit(${index})" title="Edytuj">✏️</span>`;
+          const placeInfo = `
+            <strong>Nazwa:</strong> ${placeDetails.name || 'Brak nazwy'}<br>
+            <strong>Typ:</strong> ${placeDetails.type || 'Brak typu'}<br>
+            <strong>Opis:</strong> ${placeDetails.description || 'Brak opisu'}<br>
+            <strong>Adres:</strong> ${placeDetails.address || 'Brak adresu'}<br>
+            <strong>Koszt:</strong> ${placeDetails.cost || 'Brak kosztu'}
+          `;
+          const placeImage = placeDetails.image
+            ? `<br><img src="${placeDetails.image}" alt="Zdjęcie miejsca" />`
+            : '';
+          // Obok umieszczamy przycisk Usuń
+          const buttons = `<br><button onclick="removeMarker(${index})">Usuń</button>`;
+          placeItem.innerHTML = editIcon + placeInfo + placeImage + buttons;
+          placesList.appendChild(placeItem);
+        }
+      });
+      updateRouteSelectors();
+      updateSummaryCosts();
+    }
+    
+    filterType.addEventListener('change', updatePlacesList);
+    updatePlacesList(); // Inicjalne odświeżenie listy punktów
+    updateRoutesList(); // Inicjalne odświeżenie listy tras
+    updateExtraCostsList(); // Inicjalne odświeżenie listy kosztów dodatkowych
+    
+    // --- Funkcje obsługujące markery i LocalStorage ---
+    function saveMarkers() {
+      const serializedMarkers = markers.map(({ marker, placeDetails }) => ({
+        lat: marker.getLatLng().lat,
+        lng: marker.getLatLng().lng,
+        placeDetails
+      }));
+      localStorage.setItem('markers', JSON.stringify(serializedMarkers));
+    }
+    
+    function loadMarkers() {
+      const savedMarkers = JSON.parse(localStorage.getItem('markers')) || [];
+      return savedMarkers.map(({ lat, lng, placeDetails }) => {
+        const marker = L.circleMarker([lat, lng], {
+          color: markerColors[placeDetails.type],
+          radius: 10
+        }).bindPopup(`<strong>${placeDetails.name || 'Nazwa miejsca'}</strong>`);
+        return { marker, placeDetails };
+      });
+    }
+    
+    function removeMarker(index) {
+      map.removeLayer(markers[index].marker);
+      markers.splice(index, 1);
+      saveMarkers();
+      updatePlacesList();
+      // Usuwamy trasy powiązane z danym punktem
+      routes = routes.filter(route => route.startIndex !== index && route.endIndex !== index);
+      saveRoutes();
+      updateRoutesList();
+      updateSummaryCosts();
+    }
+    
+    // --- Modal do edycji markera ---
+    // Globalne zmienne dla modal edycji
     let editingMarkerIndex = null;
-    // Kolejność pól: Nazwa, Typ, Opis, Adres, Koszt
+    // Teraz pola w kolejności: Nazwa, Typ, Opis, Adres, Koszt
     let editingFields = ["name", "type", "description", "address", "cost"];
     const editingFieldLabels = {
       name: "Nazwa",
@@ -299,7 +327,7 @@
     };
     let editingFieldIndex = 0;
     let editingData = {};
-
+    
     const markerEditModal = document.getElementById('markerEditModal');
     const markerEditTitle = document.getElementById('markerEditTitle');
     const markerEditLabel = document.getElementById('markerEditLabel');
@@ -307,15 +335,19 @@
     const markerEditNextBtn = document.getElementById('markerEditNextBtn');
     const markerEditSkipBtn = document.getElementById('markerEditSkipBtn');
     const markerEditCancelBtn = document.getElementById('markerEditCancelBtn');
-
+    
+    // Funkcja inicjująca modal edycji dla wybranego markera
     function startMarkerEdit(index) {
       editingMarkerIndex = index;
       editingFieldIndex = 0;
+      // Kopia bieżących danych markera
       editingData = Object.assign({}, markers[index].placeDetails);
       showNextField();
     }
+    
     function showNextField() {
       if (editingFieldIndex >= editingFields.length) {
+        // Zakończ edycję – zapisujemy dane
         markers[editingMarkerIndex].placeDetails = Object.assign({}, editingData);
         markers[editingMarkerIndex].marker.bindPopup(`<strong>${editingData.name}</strong>`);
         saveMarkers();
@@ -328,10 +360,12 @@
       markerEditInput.value = editingData[fieldKey] || "";
       markerEditModal.style.display = "block";
     }
+    
     function hideMarkerEditModal() {
       markerEditModal.style.display = "none";
     }
-    markerEditNextBtn.addEventListener('click', () => {
+    
+    markerEditNextBtn.addEventListener('click', function() {
       const fieldKey = editingFields[editingFieldIndex];
       const newValue = markerEditInput.value;
       if (newValue.trim() !== "") {
@@ -340,37 +374,287 @@
       editingFieldIndex++;
       showNextField();
     });
-    markerEditSkipBtn.addEventListener('click', () => {
+    
+    markerEditSkipBtn.addEventListener('click', function() {
+      // Pomiń bieżące pole
       editingFieldIndex++;
       showNextField();
     });
-    markerEditCancelBtn.addEventListener('click', () => {
+    
+    markerEditCancelBtn.addEventListener('click', function() {
+      // Anuluj edycję
       hideMarkerEditModal();
     });
-
-    // --- Funkcje związane z trasami, kosztami itd. (wcześniej stworzone) ---
-    // Poniżej znajdują się funkcje tworzenia tras, obsługi kosztów dodatkowych oraz podsumowania kosztów.
-    // Aby nie zastępować poprzedniej funkcjonalności, poniższy kod pozostaje bez zmian.
     
-    // Przykładowe zmienne i funkcje dla tras:
-    let routes = loadRoutes();
-    function updateRouteSelectors() { /* ... */ }
-    function addRoute() { /* ... */ }
-    function saveRoutes() { /* ... */ }
-    function loadRoutes() { /* ... */ return []; }
+    // --- Funkcje obsługujące trasy ---
+    function updateRouteSelectors() {
+      const startPointSelect = document.getElementById('startPoint');
+      const endPointSelect = document.getElementById('endPoint');
+      startPointSelect.innerHTML = '';
+      endPointSelect.innerHTML = '';
+      markers.forEach((item, index) => {
+        const name = item.placeDetails.name || 'Punkt ' + (index + 1);
+        const optionStart = document.createElement('option');
+        optionStart.value = index;
+        optionStart.text = name;
+        startPointSelect.appendChild(optionStart);
+        const optionEnd = document.createElement('option');
+        optionEnd.value = index;
+        optionEnd.text = name;
+        endPointSelect.appendChild(optionEnd);
+      });
+    }
     
-    // Przykładowe funkcje obsługujące koszty dodatkowe:
-    let extraCosts = loadExtraCosts();
-    function addExtraCost() { /* ... */ }
-    function updateExtraCostsList() { /* ... */ }
-    function saveExtraCosts() { /* ... */ }
-    function loadExtraCosts() { return JSON.parse(localStorage.getItem('extraCosts')) || []; }
-    function updateSummaryCosts() { /* ... */ }
+    function addRoute() {
+      const startIndex = parseInt(document.getElementById('startPoint').value);
+      const endIndex = parseInt(document.getElementById('endPoint').value);
+      if (isNaN(startIndex) || isNaN(endIndex) || startIndex === endIndex) {
+        alert('Wybierz dwa różne punkty dla trasy.');
+        return;
+      }
+      
+      const departureDate = document.getElementById('departureDate').value;
+      const departureTime = document.getElementById('departureTime').value;
+      const arrivalDate = document.getElementById('arrivalDate').value;
+      const arrivalTime = document.getElementById('arrivalTime').value;
+      const transportCost = document.getElementById('transportCost').value;
+      const routeDescription = document.getElementById('routeDescription').value;
+      
+      const startMarker = markers[startIndex].marker;
+      const endMarker = markers[endIndex].marker;
+      const startLatLng = startMarker.getLatLng();
+      const endLatLng = endMarker.getLatLng();
+      
+      const polyline = L.polyline([
+        [startLatLng.lat, startLatLng.lng],
+        [endLatLng.lat, endLatLng.lng]
+      ], { color: 'purple' }).addTo(map);
+      
+      const route = {
+        startIndex,
+        endIndex,
+        departureDate,
+        departureTime,
+        arrivalDate,
+        arrivalTime,
+        transportCost,
+        routeDescription,
+        coords: [
+          { lat: startLatLng.lat, lng: startLatLng.lng },
+          { lat: endLatLng.lat, lng: endLatLng.lng }
+        ],
+        line: polyline
+      };
+      
+      routes.push(route);
+      saveRoutes();
+      updateRoutesList();
+      updateSummaryCosts();
+    }
     
-    // Aktualne wywołania funkcji inicjalizujących:
-    updatePlacesList();
-    // updateRoutesList(); updateExtraCostsList(); updateSummaryCosts(); – pozostawione w ramach pełnej funkcjonalności
-
+    function saveRoutes() {
+      const routesToStore = routes.map(route => ({
+        startIndex: route.startIndex,
+        endIndex: route.endIndex,
+        departureDate: route.departureDate,
+        departureTime: route.departureTime,
+        arrivalDate: route.arrivalDate,
+        arrivalTime: route.arrivalTime,
+        transportCost: route.transportCost,
+        routeDescription: route.routeDescription,
+        coords: route.coords
+      }));
+      localStorage.setItem('routes', JSON.stringify(routesToStore));
+    }
+    
+    function loadRoutes() {
+      const storedRoutes = JSON.parse(localStorage.getItem('routes')) || [];
+      return storedRoutes.map(routeData => {
+        const polyline = L.polyline([
+          [routeData.coords[0].lat, routeData.coords[0].lng],
+          [routeData.coords[1].lat, routeData.coords[1].lng]
+        ], { color: 'purple' }).addTo(map);
+        return { ...routeData, line: polyline };
+      });
+    }
+    
+    function updateRoutesList() {
+      const routesList = document.getElementById('routesList');
+      routesList.innerHTML = '';
+      routes.forEach((route, index) => {
+        const routeItem = document.createElement('div');
+        routeItem.className = 'route-item';
+        const startName = markers[route.startIndex]
+          ? (markers[route.startIndex].placeDetails.name || 'Punkt ' + (route.startIndex + 1))
+          : 'Nieznany';
+        const endName = markers[route.endIndex]
+          ? (markers[route.endIndex].placeDetails.name || 'Punkt ' + (route.endIndex + 1))
+          : 'Nieznany';
+        const itemHTML = `
+          <strong>Trasa z:</strong> ${startName} <strong>do</strong> ${endName}<br>
+          <strong>Data odjazdu:</strong> ${route.departureDate || 'Brak daty'}<br>
+          <strong>Godzina odjazdu:</strong> ${route.departureTime || '-'}<br>
+          <strong>Data przyjazdu:</strong> ${route.arrivalDate || 'Brak daty'}<br>
+          <strong>Godzina przyjazdu:</strong> ${route.arrivalTime || '-'}<br>
+          <strong>Koszt transportu:</strong> ${route.transportCost || 'Brak kosztu'}<br>
+          <strong>Opis:</strong> ${route.routeDescription || 'Brak opisu'}
+        `;
+        const buttons = `
+          <button onclick="editRoute(${index})">Edytuj</button>
+          <button onclick="removeRoute(${index})">Usuń</button>
+        `;
+        routeItem.innerHTML = itemHTML + buttons;
+        routesList.appendChild(routeItem);
+      });
+      updateSummaryCosts();
+    }
+    
+    function removeRoute(index) {
+      map.removeLayer(routes[index].line);
+      routes.splice(index, 1);
+      saveRoutes();
+      updateRoutesList();
+      updateSummaryCosts();
+    }
+    
+    function editRoute(index) {
+      const route = routes[index];
+      const newStart = prompt("Wprowadź nowy indeks punktu początkowego (liczba):", route.startIndex);
+      const newEnd = prompt("Wprowadź nowy indeks punktu końcowego (liczba):", route.endIndex);
+      const newDepartureDate = prompt("Edytuj datę odjazdu (YYYY-MM-DD):", route.departureDate);
+      const newDepartureTime = prompt("Edytuj godzinę odjazdu (HH:MM):", route.departureTime);
+      const newArrivalDate = prompt("Edytuj datę przyjazdu (YYYY-MM-DD):", route.arrivalDate);
+      const newArrivalTime = prompt("Edytuj godzinę przyjazdu (HH:MM):", route.arrivalTime);
+      const newTransportCost = prompt("Edytuj koszt transportu:", route.transportCost);
+      const newRouteDescription = prompt("Edytuj opis:", route.routeDescription);
+      
+      if (newStart !== null) route.startIndex = parseInt(newStart);
+      if (newEnd !== null) route.endIndex = parseInt(newEnd);
+      if (newDepartureDate !== null) route.departureDate = newDepartureDate;
+      if (newDepartureTime !== null) route.departureTime = newDepartureTime;
+      if (newArrivalDate !== null) route.arrivalDate = newArrivalDate;
+      if (newArrivalTime !== null) route.arrivalTime = newArrivalTime;
+      if (newTransportCost !== null) route.transportCost = newTransportCost;
+      if (newRouteDescription !== null) route.routeDescription = newRouteDescription;
+      
+      map.removeLayer(route.line);
+      const newStartMarker = markers[route.startIndex].marker;
+      const newEndMarker = markers[route.endIndex].marker;
+      const newStartLatLng = newStartMarker.getLatLng();
+      const newEndLatLng = newEndMarker.getLatLng();
+      route.coords = [
+        { lat: newStartLatLng.lat, lng: newStartLatLng.lng },
+        { lat: newEndLatLng.lat, lng: newEndLatLng.lng }
+      ];
+      route.line = L.polyline([
+        [newStartLatLng.lat, newStartLatLng.lng],
+        [newEndLatLng.lat, newEndLatLng.lng]
+      ], { color: 'purple' }).addTo(map);
+      
+      saveRoutes();
+      updateRoutesList();
+      updateSummaryCosts();
+    }
+    
+    // --- Funkcje obsługujące koszty dodatkowe ---
+    function addExtraCost() {
+      const desc = document.getElementById('extraCostDesc').value.trim();
+      const amount = parseFloat(document.getElementById('extraCostAmount').value);
+      if (!desc || isNaN(amount)) {
+        alert("Podaj opis i poprawną kwotę kosztu dodatkowego.");
+        return;
+      }
+      extraCosts.push({ desc, amount });
+      saveExtraCosts();
+      updateExtraCostsList();
+      updateSummaryCosts();
+      document.getElementById('extraCostDesc').value = "";
+      document.getElementById('extraCostAmount').value = "";
+    }
+    
+    function updateExtraCostsList() {
+      const extraCostsList = document.getElementById('extraCostsList');
+      extraCostsList.innerHTML = '';
+      extraCosts.forEach((extra, index) => {
+        const div = document.createElement('div');
+        div.innerHTML = `<strong>${extra.desc}:</strong> ${extra.amount} 
+          <button onclick="editExtraCost(${index})">Edytuj</button>
+          <button onclick="removeExtraCost(${index})">Usuń</button>`;
+        extraCostsList.appendChild(div);
+      });
+    }
+    
+    function editExtraCost(index) {
+      const newDesc = prompt("Edytuj opis kosztu:", extraCosts[index].desc);
+      if (newDesc === null) return; // Anulowano
+      let newAmount = prompt("Edytuj kwotę kosztu:", extraCosts[index].amount);
+      if (newAmount === null) return;
+      newAmount = parseFloat(newAmount);
+      if (isNaN(newAmount)) {
+        alert("Podana kwota jest niepoprawna.");
+        return;
+      }
+      extraCosts[index] = { desc: newDesc, amount: newAmount };
+      saveExtraCosts();
+      updateExtraCostsList();
+      updateSummaryCosts();
+    }
+    
+    function removeExtraCost(index) {
+      extraCosts.splice(index, 1);
+      saveExtraCosts();
+      updateExtraCostsList();
+      updateSummaryCosts();
+    }
+    
+    function saveExtraCosts() {
+      localStorage.setItem('extraCosts', JSON.stringify(extraCosts));
+    }
+    
+    function loadExtraCosts() {
+      return JSON.parse(localStorage.getItem('extraCosts')) || [];
+    }
+    
+    // --- Funkcja sumująca wszystkie koszty ---
+    function updateSummaryCosts() {
+      let transportTotal = 0;
+      routes.forEach(route => {
+        const cost = parseFloat(route.transportCost);
+        if (!isNaN(cost)) {
+          transportTotal += cost;
+        }
+      });
+      
+      let noclegTotal = 0, atrakcjaTotal = 0, jedzenieTotal = 0;
+      markers.forEach(item => {
+        const cost = parseFloat(item.placeDetails.cost);
+        if (!isNaN(cost)) {
+          if (item.placeDetails.type === "Nocleg") {
+            noclegTotal += cost;
+          } else if (item.placeDetails.type === "Atrakcja") {
+            atrakcjaTotal += cost;
+          } else if (item.placeDetails.type === "Jedzenie") {
+            jedzenieTotal += cost;
+          }
+        }
+      });
+      
+      let extraTotal = 0;
+      extraCosts.forEach(extra => {
+        extraTotal += extra.amount;
+      });
+      
+      const total = transportTotal + noclegTotal + atrakcjaTotal + jedzenieTotal + extraTotal;
+      const totalCostsDiv = document.getElementById('totalCosts');
+      totalCostsDiv.innerHTML = `
+        <p><strong>Koszty transportu:</strong> ${transportTotal.toFixed(2)}</p>
+        <p><strong>Koszty noclegów:</strong> ${noclegTotal.toFixed(2)}</p>
+        <p><strong>Koszty atrakcji:</strong> ${atrakcjaTotal.toFixed(2)}</p>
+        <p><strong>Koszty jedzenia:</strong> ${jedzenieTotal.toFixed(2)}</p>
+        <p><strong>Koszty dodatkowe:</strong> ${extraTotal.toFixed(2)}</p>
+        <p><strong>Całkowity koszt:</strong> ${total.toFixed(2)}</p>
+      `;
+    }
   </script>
 </body>
 </html>
